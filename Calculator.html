@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wager Calculator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input[type="number"] {
+            width: 200px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .wagers-list {
+            margin: 15px 0;
+            padding: 10px;
+            background-color: #f8f8f8;
+            border-radius: 4px;
+        }
+
+        .results {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e8f5e9;
+            border-radius: 4px;
+        }
+
+        .reset-btn {
+            background-color: #f44336;
+        }
+
+        .reset-btn:hover {
+            background-color: #da190b;
+        }
+
+        .positive {
+            color: green;
+        }
+
+        .negative {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Wager Calculator</h2>
+        
+        <div class="input-group">
+            <label for="odd">Odd:</label>
+            <input type="number" id="odd" step="0.01" oninput="updateCalculations()">
+        </div>
+
+        <div class="input-group">
+            <label for="probability">Probability (p):</label>
+            <input type="number" id="probability" step="0.01" min="0" max="1" oninput="updateCalculations()">
+        </div>
+
+        <div class="input-group">
+            <label for="desired-p">Desired P:</label>
+            <input type="number" id="desired-p" step="0.01" oninput="updateCalculations()">
+        </div>
+
+        <div class="wagers-list">
+            <h3>Current Wagers:</h3>
+            <div id="wagers-display"></div>
+            <div class="input-group">
+                <label for="new-wager-input">Add Wager:</label>
+                <input type="number" id="new-wager-input" step="0.01">
+                <button onclick="addWager()">Add Wager</button>
+            </div>
+        </div>
+
+        <button class="reset-btn" onclick="resetAll()">Reset to Default</button>
+
+        <div class="results" id="results">
+            <!-- Results will be displayed here -->
+        </div>
+    </div>
+
+    <script>
+        // Default values
+        const DEFAULT_VALUES = {
+            odd: 1.61,
+            desired_p: 1,
+            wagers: [],
+            p: 0.67
+        };
+
+        // Initialize state
+        let state = loadState();
+
+        // Load initial state
+        function loadState() {
+            const savedState = localStorage.getItem('wagerCalculatorState');
+            return savedState ? JSON.parse(savedState) : {...DEFAULT_VALUES};
+        }
+
+        // Save state
+        function saveState() {
+            localStorage.setItem('wagerCalculatorState', JSON.stringify(state));
+        }
+
+        // Initialize UI
+        function initializeUI() {
+            document.getElementById('odd').value = state.odd;
+            document.getElementById('probability').value = state.p;
+            document.getElementById('desired-p').value = state.desired_p;
+            updateWagersDisplay();
+            updateCalculations();
+        }
+
+        // Update wagers display
+        function updateWagersDisplay() {
+            const wagersDisplay = document.getElementById('wagers-display');
+            wagersDisplay.innerHTML = state.wagers.map((wager, index) => 
+                `<div>Wager ${index + 1}: ${wager} 
+                 <button onclick="removeWager(${index})">Remove</button></div>`
+            ).join('');
+            updateCalculations();
+        }
+
+        // Add wager
+        function addWager() {
+            const newWagerInput = document.getElementById('new-wager-input');
+            const newWager = parseFloat(newWagerInput.value);
+            if (!isNaN(newWager)) {
+                state.wagers.push(newWager);
+                newWagerInput.value = '';
+                updateWagersDisplay();
+                saveState();
+            }
+        }
+
+        // Remove wager
+        function removeWager(index) {
+            state.wagers.splice(index, 1);
+            updateWagersDisplay();
+            saveState();
+        }
+
+        // Update calculations
+        function updateCalculations() {
+            const odd = parseFloat(document.getElementById('odd').value);
+            const p = parseFloat(document.getElementById('probability').value);
+            const desired_p = parseFloat(document.getElementById('desired-p').value);
+
+            if (isNaN(odd) || isNaN(p) || isNaN(desired_p)) {
+                document.getElementById('results').innerHTML = '<p>Please enter valid numbers</p>';
+                return;
+            }
+
+            // Update state
+            state.odd = odd;
+            state.p = p;
+            state.desired_p = desired_p;
+            saveState();
+
+            // Calculate new wager
+            const new_wager = (desired_p + state.wagers.reduce((a, b) => a + b, 0)) / (odd - 1);
+            
+            // Calculate EV
+            const ev = p * new_wager * (odd - 1) - (1 - p) * (new_wager + state.wagers.reduce((a, b) => a + b, 0));
+
+            // Display results
+            document.getElementById('results').innerHTML = `
+                <h3>Results:</h3>
+                <p>New Wager: ${new_wager.toFixed(4)}</p>
+                <p>Expected Value: <span class="${ev > 0 ? 'positive' : 'negative'}">${ev.toFixed(4)}</span></p>
+                <button onclick="addCalculatedWager(${new_wager})">Add to Wagers</button>
+            `;
+        }
+
+        // Add calculated wager to wagers list
+        function addCalculatedWager(newWager) {
+            state.wagers.push(newWager);
+            updateWagersDisplay();
+            saveState();
+        }
+
+        // Reset all values to default
+        function resetAll() {
+            state = {...DEFAULT_VALUES};
+            saveState();
+            initializeUI();
+        }
+
+        // Initialize the UI when the page loads
+        window.onload = initializeUI;
+    </script>
+</body>
+</html>
